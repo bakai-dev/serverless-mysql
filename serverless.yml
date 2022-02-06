@@ -1,4 +1,4 @@
-service: auction-service
+service: mysql-service
 
 plugins:
   - serverless-bundle
@@ -6,48 +6,48 @@ plugins:
 
 provider:
   name: aws
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "rds-db:connect"
+          Resource: "arn:aws:rds-db:eu-west-1:632021086366:database:prx-0a0372dc152eb04a5/*"
   runtime: nodejs12.x
   memorySize: 256
   stage: ${opt:stage, 'dev'}
   region: eu-west-1
-  environment:
-    AUCTIONS_TABLE_NAME: ${self:custom.AuctionsTable.name}
-  iamRoleStatements:
-    - ${file(iam/AuctionsTableIAM.yaml):AuctionsTableIAM}
-
+  vpc:
+    securityGroupIds:
+      - "sg-0471e61254a614c13"
+    subnetIds:
+      - "subnet-0e2a404afb9ca2b2d"
+      - "subnet-06b799a86717fc266"
+      - "subnet-04622113c9dc85a04"
 resources:
   Resources:
-    AuctionsTable: ${file(resources/AuctionsTable.yaml):AuctionsTable}
 functions:
-  createAuction:
-    handler: src/handlers/createAuction.handler
-    events:
-      - http:
-          method: POST
-          path: /auction
-
   getAuctions:
     handler: src/handlers/getAuctions.handler
     events:
       - http:
           method: GET
           path: /auction
+    Environment:
+      Variables:
+        DB_HOST: !Ref DBEndpoint
+        DB_USER: !Ref DBUsername
+        DB_NAME: !Ref DBName
+    Layers:
+      - !Ref DependenciesLayer
+    Policies:
+        Version:  '2012-10-17'
+        Statement:
+          Effect: Allow
+          Action:
+            - rds-db:connect
+          Resource:
+            - !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DBResourceId}/${DBUsername}"
 
-  getAuction:
-    handler: src/handlers/getAuction.handler
-    events:
-      - http:
-          method: GET
-          path: /auction/{id}
-  placeBid:
-    handler: src/handlers/placeBid.handler
-    events:
-      - http:
-          method: PATCH
-          path: /auction/{id}/bid
-custom:
-  AuctionsTable:
-    name: !Ref AuctionsTable
-    arn: !GetAtt AuctionsTable.Arn
-  bundle:
-    linting: false
+
+
